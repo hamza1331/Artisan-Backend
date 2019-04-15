@@ -9,7 +9,9 @@ const Listings = require('./models/Listings')
 const Activity = require('./models/ProfileActivity')
 const Shipping = require('./models/Shipping')
 const Category = require('./models/Categories')
+const Chats = require('./models/Chats')
 const port = process.env.PORT || 8000
+const client = require('socket.io').listen(8001).sockets;
 app.use(bodyParser.json())  //Body Parser MiddleWare
 app.use(express.json())
 mongoose.connect('mongodb://demo:demo123@ds137441.mlab.com:37441/artisan',{useNewUrlParser:true}) //MongoDB connection using Mongoose
@@ -190,6 +192,100 @@ app.put('/api/addFavorite',(req,res)=>{
                })
     })
 })
+app.get('/api/getChats',(req,res)=>{
+    const chatIds = req.body
+    let chats = []
+    chatIds.forEach(id=>{
+        Chats.findById(id,(err,docs)=>{
+            if(err)return err
+            chats.push(docs)
+        })
+    })
+    if(chats.length>0){
+        res.json({
+            message:"Success",
+            data:chats
+        })
+    }
+    else{
+        res.json({
+            message:"No chat found"
+        })
+    }
+
+})
+app.get('/api/getMessages',(req,res)=>{         //get messages of a chat
+  Chats.findOne({firebaseUID:req.body.firebaseUID},(err,docs)=>{
+      if(err)res.json(err).status(500)
+      console.log(docs)
+      if(docs!==null){
+        res.json({
+            message:"Success",
+            data:docs
+        })
+      }
+      else{
+          Chats.create({firebaseUID:req.body.firebaseUID},(err,doc)=>{
+            if(err)res.json(err).status(500)
+            res.json({
+                message:"Chat created",
+                data:doc
+            })
+
+          })
+      }
+  })  
+})
+client.on('connection', function(socket){
+    console.log('Client connected')
+    // Create function to send status
+    sendStatus = function(s){
+        socket.emit('status', s);
+    }
+
+    // Get chats from mongo collection
+       // Handle input events
+    socket.on('input', function(data){
+        let body = data
+        let firebaseUID = body.firebaseUID;
+        let message = {
+            text:data.text,
+            senderID:data.senderID,
+            receiverID:data.receiverID
+        };
+        console.log(body)
+        // Check for name and message
+        if(firebaseUID == '' || message == undefined){
+            // Send error status
+            sendStatus('Please enter a name and message');
+        } else {
+            // Insert message
+            Chats.findOneAndUpdate({firebaseUID},{$push:{messages:message}},{new:true},(err,docs)=>{
+                if(err)console.log('Error: '+err)
+
+                socket.emit('Sent',"Done")
+            })
+            // Chats.insert({firebaseUID: firebaseUID, message: message}, function(){
+            //     client.emit('output', [data]);
+
+            //     // Send status object
+            //     sendStatus({
+            //         message: 'Message sent',
+            //         clear: true
+            //     });
+            // });
+        }
+    });
+
+    // Handle clear
+    socket.on('clear', function(data){
+        // Remove all chats from collection
+        Chats.remove({}, function(){
+            // Emit cleared
+            socket.emit('cleared');
+        });
+    });
+});
 //Server
 app.listen(port,function(){
     console.log('Listening on port'+port)
