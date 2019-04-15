@@ -8,6 +8,7 @@ const mongoose = require('mongoose')
 const Listings = require('./models/Listings')
 const Activity = require('./models/ProfileActivity')
 const Shipping = require('./models/Shipping')
+const Category = require('./models/Categories')
 const port = process.env.PORT || 8000
 app.use(bodyParser.json())  //Body Parser MiddleWare
 app.use(express.json())
@@ -25,7 +26,7 @@ app.post('/api/addUser',(req,res)=>{
             res.json(err).status(500)
         }
         console.log(doc._id)
-        Activity.create({userID:doc._id})
+        Activity.create({firebaseUID:doc.firebaseUID})
         res.json({
             message:"Success",
             user:doc
@@ -56,6 +57,9 @@ app.post('/api/addListing',(req,res)=>{
     const data = req.body
     Listings.create(data,(err,doc)=>{
         if(err)res.json(err).status(500)
+        Activity.findOneAndUpdate({firebaseUID:doc.firebaseUID},{$push:{onSale:doc._id}},{new:true},(err,docs)=>{
+               
+        })
         res.json({
             message:'Success',
             data:doc
@@ -131,6 +135,59 @@ app.post('/api/addShipping',(req,res)=>{
                 })
             })
         }
+    })
+})
+app.get('/api/getProfile',(req,res)=>{
+    User.findOne({firebaseUID:req.body.firebaseUID},(err,doc)=>{
+        if(err)res.json(err).status(500)
+        let data = doc
+        Activity.findOne({firebaseUID:req.body.firebaseUID},(err,docs)=>{
+            if(err)res.json(err).status(500)
+            console.log(data)
+           let userData =  {
+               data,docs
+           }
+            res.json({
+                message:'Success',
+                user:userData
+            }).status(200)
+        })
+    })
+})
+app.post('/api/addCategory',(req,res)=>{
+    Category.create(req.body,(err,docs)=>{
+        if(err)res.json(err).status(500)
+        res.json({
+            message:"Success",
+            category:docs
+        })
+    })
+})
+app.post('/api/addSubCategory',(req,res)=>{
+    Category.findOneAndUpdate({_id:req.body.id},{$push:{subCategories:req.body.subCategory}},{new:true},(err,docs)=>{
+        if(err)res.json(err).status(500)
+        res.json({
+            message:"Success",
+            data:docs
+        })
+    })
+})
+app.delete('/api/deleteCategory',(req,res)=>{
+    Category.findByIdAndRemove(req.body.id,(err,doc)=>{
+        if(err)res.json(err).status(500)
+        res.json({
+            message:"Success",
+            data:doc
+        })
+    })
+})
+app.put('/api/addFavorite',(req,res)=>{
+    Activity.findOneAndUpdate({firebaseUID:req.body.firebaseUID},{$push:{Favorites:req.body.id}},{new:true},(err,docs)=>{
+               if(err)res.json(err).status(500)
+               res.json({
+                   message:"Success",
+                   data:docs
+               })
     })
 })
 //Server

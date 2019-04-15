@@ -2,20 +2,16 @@ const mongoose = require('mongoose');
 
 const subCategorySchema = new mongoose.Schema({
     name:{
-        type:String,
-        required:true
+        type:String
     },
     iconName:{
-        type:String,
-        required:true
+        type:String
     },
     iconType:{
-        type:String,
-        required:true
+        type:String
     },
     color:{
-        type:String,
-        required:true
+        type:String
     }
 })
 
