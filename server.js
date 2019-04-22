@@ -11,23 +11,25 @@ const Shipping = require('./models/Shipping')
 const Category = require('./models/Categories')
 const Chats = require('./models/Chats')
 const port = process.env.PORT || 8000
+const cors = require('cors')
 const client = require('socket.io').listen(8001).sockets;
 app.use(bodyParser.json())  //Body Parser MiddleWare
 app.use(express.json())
 mongoose.connect('mongodb://demo:demo123@ds137441.mlab.com:37441/artisan',{useNewUrlParser:true}) //MongoDB connection using Mongoose
 var db = mongoose.connection //Mongo Connection Instance
 db.on('open',()=>console.log('database connected'))
+app.use(cors())
 app.get('/',function(req,res){  //HomePage for API
     res.json({message:'Welcome'})
 })
 
 app.post('/api/addUser',(req,res)=>{
+    console.log(req.body)
     const user = req.body
     User.create(user,(err,doc)=>{
         if(err){
             res.json(err).status(500)
         }
-        console.log(doc._id)
         Activity.create({firebaseUID:doc.firebaseUID})
         res.json({
             message:"Success",
@@ -35,7 +37,19 @@ app.post('/api/addUser',(req,res)=>{
         }).status(200)
     })
 })
+app.post('/api/status',(req,res)=>{
+
+
+   User.findOne({firebaseUID:req.body.firebaseUID},'isLoggedIn',(err,data)=>{
+    if(err)res.json(err).status(500)
+    res.json({
+        message:'Success',
+        data
+    })
+})
+})
 app.put('/api/login',(req,res)=>{
+    console.log('API call',req.body)
     const firebaseUID = req.body
     User.findOneAndUpdate(firebaseUID,{$set:{isLoggedIn:true}},{new:true},(err,doc)=>{
         if(err)res.json(err).status(500)
@@ -70,8 +84,7 @@ app.post('/api/addListing',(req,res)=>{
 })
 app.get('/api/getListings:page',(req,res)=>{
     const query = Object.assign({},req.body)
-    console.log(query)    
-    var perPage = 10
+    var perPage = 20
     var page = req.params.page || 1
    if(query.hasOwnProperty("minPrice")){
      delete query.minPrice
