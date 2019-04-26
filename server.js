@@ -37,6 +37,18 @@ app.post('/api/addUser',(req,res)=>{
         }).status(200)
     })
 })
+app.put('/api/addImage',(req,res)=>{
+    const user = req.body
+    if(user.profilePic){
+        User.findOneAndUpdate({firebaseUID:user.firebaseUID},{$set:{profilePic:user.profilePic}},{new:true},(err,doc)=>{
+            if(err)throw err
+            res.json({
+                message:'Success',
+                data:doc
+            })
+        })
+    }
+})
 app.post('/api/status',(req,res)=>{
 
 
@@ -94,6 +106,7 @@ app.get('/api/getListings:page',(req,res)=>{
         $lte:req.body.maxPrice,
         $gte:req.body.minPrice
     }}).skip((perPage*page)-perPage).limit(perPage).exec((err,data)=>{
+
         Listings.estimatedDocumentCount().exec((err, count) => {
             if (err) return res.json({message:err})
             res.json({
@@ -117,6 +130,25 @@ app.get('/api/getListings:page',(req,res)=>{
         })
     })  
    }
+})
+app.get('/api/getListing:listingId',(req,res)=>{
+    Listings.findById(req.params.listingId,(err,doc)=>{
+        if(err)throw err
+        User.findOne({firebaseUID:doc.firebaseUID},'fName profilePic',(err,data)=>{
+            Shipping.findOne({firebaseUID:doc.firebaseUID},(err,shipping)=>{
+                let result={
+                    doc,
+                    userData:data,
+                    shipping
+                }
+                if(err)throw err
+                res.json({
+                    message:"Success",
+                    result
+                })
+            })
+        })
+    })
 })
 app.get('/api/getShipping',(req,res)=>{
     Shipping.findOne({firebaseUID:req.body.firebaseUID},(err,docs)=>{
@@ -152,8 +184,8 @@ app.post('/api/addShipping',(req,res)=>{
         }
     })
 })
-app.get('/api/getProfile',(req,res)=>{
-    User.findOne({firebaseUID:req.body.firebaseUID},(err,doc)=>{
+app.get('/api/getProfile:firebaseUID',(req,res)=>{
+    User.findOne({firebaseUID:req.params.firebaseUID},(err,doc)=>{
         if(err)res.json(err).status(500)
         let data = doc
         Activity.findOne({firebaseUID:req.body.firebaseUID},(err,docs)=>{

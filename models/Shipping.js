@@ -44,4 +44,4 @@ const ShippingSchema = new mongoose.Schema({
   }
 });
 
-module.exports = mongoose.model('Shipping', ShippingSchema);
+module.exports = mongoose.model('shippings', ShippingSchema);
