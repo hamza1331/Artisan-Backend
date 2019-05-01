@@ -8,7 +8,7 @@ const MessageSchema = new mongoose.Schema({
     text:{
         type:String
     },
-    imageLink:{
+    image:{
         type:String
     },
     senderAvatarLink:{

@@ -324,14 +324,16 @@ app.put('/api/getMessages',(req,res)=>{         //get messages of a chat from li
       }
   })  
 })
+app.put('/api/searchListing',(req,res)=>{
+    Listings.find({$text: {$search: req.body.title}})
+    .limit(10)
+    .exec((err, docs)=> {
+        if(err) throw err
+        res.json(docs)
+      });
+})
 client.on('connection', (socket)=>{
     console.log('Client connected')
-    socket.on('connected',()=>{
-        let obj = {
-            message:'hello'
-        }
-        socket.emit('data',JSON.stringify(obj))
-    })
     // Create function to send status
     sendStatus = function(s){
         socket.emit('status', s);
@@ -339,28 +341,40 @@ client.on('connection', (socket)=>{
 
     // Get chats from mongo collection
        // Handle input events
-    socket.on('input', function(response){
+    socket.on('input', (response)=>{
+
         let data = JSON.parse(response)
         let {chatId} = data
-       let message = {
-        createdAt:data.createdAt,
-        text:data.text,
-        senderAvatarLink:data.senderAvatarLink,
-        senderID:data.senderID,
-       }
-       
-       let firebaseUID = data.senderID
+        let message={}
+        if(data.hasOwnProperty('text')){
+            message = {
+                createdAt:data.createdAt,
+                text:data.text,
+                senderAvatarLink:data.senderAvatarLink,
+                senderID:data.senderID
+               }
+        }
+        else if(data.hasOwnProperty('image')){
+            message = {
+                createdAt:data.createdAt,
+                image:data.image,
+                senderAvatarLink:data.senderAvatarLink,
+                senderID:data.senderID
+               }
+        }
+        let firebaseUID = data.senderID
         // Check for name and message
         if(firebaseUID == '' || message == undefined){
             // Send error status
-            sendStatus('Please enter a name and message');
+            return
         } else {
             // Insert message
-            Chats.findById(chatId,{$push:{messages:message}},{new:true},(err,docs)=>{
+            Chats.findByIdAndUpdate(chatId,{$push:{messages:message}},{new:true},(err,docs)=>{
                 if(err)console.log('Error: '+err)
                 let newmsg = docs.messages[docs.messages.length-1]
                 newmsg.fName = docs.fName
-                socket.emit('Sent',JSON.stringify(newmsg))
+                let emitter = socket.broadcast
+                emitter.emit('Sent',JSON.stringify(newmsg))
             })
             // Chats.insert({firebaseUID: firebaseUID, message: message}, function(){
             //     client.emit('output', [data]);
