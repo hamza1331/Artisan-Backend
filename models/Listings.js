@@ -1,11 +1,13 @@
 const mongoose = require('mongoose');
 const locationSchema = new mongoose.Schema({
-    longitude:{
-        type:String
-    },
-    latitude:{
-        type:String
-    }
+   type:{
+       type:String,
+       default:"Point"
+   },
+   coordinates:{
+       type:[Number],
+       index:'2dsphere'
+   }
 })
 const ListingSchema = new mongoose.Schema({
     title:{
@@ -39,7 +41,7 @@ const ListingSchema = new mongoose.Schema({
     imageLinks:{
         type:[String]
     },
-    location:{
+    geometry:{
         type:locationSchema
     },
     firebaseUID:{
@@ -60,4 +62,5 @@ const ListingSchema = new mongoose.Schema({
     }
 });
 ListingSchema.index({name:'text','title':"text"})
+ListingSchema.index({geometry:"2dsphere"});
 module.exports = mongoose.model('Listings', ListingSchema);
