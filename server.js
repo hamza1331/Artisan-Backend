@@ -10,6 +10,8 @@ const Activity = require('./models/ProfileActivity')
 const Shipping = require('./models/Shipping')
 const Category = require('./models/Categories')
 const Chats = require('./models/Chats')
+const Reports = require('./models/Reports')
+const Icons = require('./models/Icons')
 const port = process.env.PORT || 5000
 const cors = require('cors')
 const client = require('socket.io').listen(5001).sockets;
@@ -60,6 +62,7 @@ app.post('/api/status', (req, res) => {
         })
     })
 })
+
 app.put('/api/login', (req, res) => {
     console.log('API call', req.body)
     const firebaseUID = req.body
@@ -208,6 +211,32 @@ app.post('/api/getListings:page', (req, res) => {
         })
     }
 })
+app.post('/api/addIcons',(req,res)=>{
+    const data = req.body
+    let icons = data.map(icon=>{
+        return{
+            name:icon,
+            type:'ionicon'
+        }
+    })
+    Icons.create(icons,(err,docs)=>{
+        if(err)throw err
+        res.json({
+            message:'Success',
+            docs
+        })
+    })
+})
+app.get('/api/getIcons:type',(req,res)=>{
+    let {type} = req.params
+    Icons.find({type:type},(err,docs)=>{
+        if(err)throw err
+        res.json({
+            message:'Success',
+            docs
+        })
+    })
+})
 app.get('/api/getListing:listingId', (req, res) => {
     Listings.findById(req.params.listingId, (err, doc) => {
         if (err) throw err
@@ -310,6 +339,15 @@ app.put('/api/addFavorite', (req, res) => {
         res.json({
             message: "Success",
             data: docs
+        })
+    })
+})
+app.post('/api/report',(req,res)=>{
+    Reports.create(req.body,(err,doc)=>{
+        if(err)throw err
+        res.json({
+            message:"Success",
+            data:doc
         })
     })
 })
