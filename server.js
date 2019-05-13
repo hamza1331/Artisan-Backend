@@ -11,6 +11,7 @@ const Shipping = require('./models/Shipping')
 const Category = require('./models/Categories')
 const Chats = require('./models/Chats')
 const Reports = require('./models/Reports')
+const PaymentInfo = require('./models/PaymentInfo')
 const Icons = require('./models/Icons')
 const port = process.env.PORT || 5000
 const cors = require('cors')
@@ -256,6 +257,15 @@ app.get('/api/getListing:listingId', (req, res) => {
         })
     })
 })
+app.get('/api/getCategories',(req,res)=>{
+    Category.find({},(err,docs)=>{
+        if(err)throw err
+        res.json({
+            message:"Success",
+            docs
+        })
+    })
+})
 app.get('/api/getShipping:firebaseUID', (req, res) => {
     Shipping.findOne({ firebaseUID: req.params.firebaseUID }, (err, docs) => {
         if (err) res.json(err)
@@ -290,6 +300,32 @@ app.put('/api/addShipping', (req, res) => {
         }
     })
 })
+app.put('/api/addPaymentInfo', (req, res) => {
+    PaymentInfo.findOne({ firebaseUID: req.body.firebaseUID }, (err, docs) => {
+        if (err) throw err
+        if (docs === null) {    //insert
+            let data = req.body
+            PaymentInfo.create(data, (err, docs) => {
+                if (err) res.json(err)
+                return res.json({
+                    message: "Success",
+                    data: docs
+                })
+            })
+        }
+        else {           //update
+            let data = req.body
+            PaymentInfo.findOneAndUpdate({ firebaseUID: req.body.firebaseUID }, data, { new: true }, (err, doc) => {
+                if (err) throw err
+                return res.json({
+                    message: "Success",
+                    data: doc
+                })
+            })
+        }
+    })
+})
+
 app.get('/api/getProfile:firebaseUID', (req, res) => {
     User.findOne({ firebaseUID: req.params.firebaseUID }, (err, doc) => {
         if (err) res.json(err)
