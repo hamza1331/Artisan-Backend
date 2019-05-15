@@ -352,7 +352,7 @@ app.post('/api/addCategory', (req, res) => {
     })
 })
 app.post('/api/addSubCategory', (req, res) => {
-    Category.findOneAndUpdate({ _id: req.body.id }, { $push: { subCategories: req.body.subCategory } }, { new: true }, (err, docs) => {
+    Category.findByIdAndUpdate(req.body.id, { $push: { subCategories: req.body } }, { new: true }, (err, docs) => {
         if (err) res.json(err)
         res.json({
             message: "Success",
