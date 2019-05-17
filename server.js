@@ -13,7 +13,9 @@ const Chats = require('./models/Chats')
 const Reports = require('./models/Reports')
 const PaymentInfo = require('./models/PaymentInfo')
 const Icons = require('./models/Icons')
+const stripe = require("stripe")("sk_test_HoPdfcNw4Z50hxhA5wbEeT62002SCwGUWP");
 const port = process.env.PORT || 5000
+const ExternalAccount = require('./models/ExternalAccounts')
 const cors = require('cors')
 const client = require('socket.io').listen(5001).sockets;
 app.use(bodyParser.json())  //Body Parser MiddleWare
@@ -300,31 +302,6 @@ app.put('/api/addShipping', (req, res) => {
         }
     })
 })
-app.put('/api/addPaymentInfo', (req, res) => {
-    PaymentInfo.findOne({ firebaseUID: req.body.firebaseUID }, (err, docs) => {
-        if (err) throw err
-        if (docs === null) {    //insert
-            let data = req.body
-            PaymentInfo.create(data, (err, docs) => {
-                if (err) res.json(err)
-                return res.json({
-                    message: "Success",
-                    data: docs
-                })
-            })
-        }
-        else {           //update
-            let data = req.body
-            PaymentInfo.findOneAndUpdate({ firebaseUID: req.body.firebaseUID }, data, { new: true }, (err, doc) => {
-                if (err) throw err
-                return res.json({
-                    message: "Success",
-                    data: doc
-                })
-            })
-        }
-    })
-})
 
 app.get('/api/getProfile:firebaseUID', (req, res) => {
     User.findOne({ firebaseUID: req.params.firebaseUID }, (err, doc) => {
@@ -376,6 +353,30 @@ app.put('/api/addFavorite', (req, res) => {
             message: "Success",
             data: docs
         })
+    })
+})
+app.get('/api/getFavorites:firebaseUID',(req,res)=>{
+    Activity.findOne({firebaseUID:req.params.firebaseUID},'Favorites',(err,doc)=>{
+        if(err){
+            console.log(err)
+            res.json({message:'Failed'})
+        }
+        else{
+                let ids = doc.Favorites
+                let objecIDs = ids.map(id => mongoose.Types.ObjectId(id))
+                console.log(objecIDs)
+                if (ids.length > 0) {
+                    Listings.find({ _id: { $in: objecIDs } }, (err, docs) => {
+                        if (err) throw err
+                        if (docs.length > 0)
+                            res.json({
+                                message: "Success",
+                                data: docs
+                            })
+                    })
+                }
+
+        }
     })
 })
 app.post('/api/report',(req,res)=>{
@@ -435,6 +436,15 @@ app.put('/api/getChats', (req, res) => { //get messages of a chat from conversat
         }
     })
 })
+app.get('/getAcc',(req,res)=>{
+    stripe.accounts.list(
+        { limit: 5 },
+        function(err, accounts) {
+          // asynchronously called
+          res.json({message:"Success",accounts})
+        }
+      );
+})
 // app.post('/api/getChatMessages',(req,res)=>{
 //     Chats.findById(req.body.chatId,(err,doc)=>{
 //         if(err)throw err
@@ -481,6 +491,206 @@ app.put('/api/getMessages', (req, res) => {         //get messages of a chat fro
         }
     })
 })
+app.post('/paym',(req,res)=>{
+    var collfeefloat=req.body.amount*0.2
+   var collfee= Math.ceil(collfeefloat)
+    stripe.customers.create({
+      email:req.body.token.email,   //khareed rha hai..
+      source:req.body.token.id    //us ki taraf se stipe token ID
+    }).then((customer) => {
+      return stripe.charges.create({
+        amount:req.body.amount,
+        currency: "usd",
+        source: "tok_visa",
+        application_fee_amount:collfee,   //platform pese
+      }, {
+        stripe_account: "acct_1EaXXRCEW9pT8D0d",  //jis ko bhej rahe hain...
+      }).then(function(charge) {
+        res.json({
+          message:"Success",
+          charge
+        })
+      });
+    });  
+  })
+  app.get('/api/getUserListings:firebaseUID',(req,res)=>{
+      Listings.find({firebaseUID:req.params.firebaseUID},(err,docs)=>{
+          if(err)res.json({message:"Failed"})
+          else {
+              console.log(docs)
+              res.json({
+                message:"Success",
+                docs
+            })
+          }
+      })
+  })
+  app.get('/tos',(req,res)=>{
+  
+    stripe.accounts.update('acct_1Eat1XIMeTEWEPkW',{
+      tos_acceptance:{
+        ip:req.connection.remoteAddress,
+        date:Math.floor(Date.now()/1000)
+      }
+    })
+    res.json({
+      message:"Success"
+    })
+  })
+  app.post('/createacc',(req,res)=>{
+    let data = req.body
+    for(let c in data){
+      if(data[c]==='')
+      {
+      res.json({
+        message:"Failed",  
+      })
+      return
+    } 
+    }
+    let dateofbirth = data.dob.split('/')
+    if(data.type==='Individual'){
+      let account = {
+        default_currency:"usd",
+        type:"custom",
+        country:"US",
+      requested_capabilities:["card_payments"],
+      business_type:"individual",
+      individual:{
+        first_name:data.first_name,
+        last_name:data.last_name,
+        gender:data.gender,
+        id_number:data.ssn,
+        email:data.email,
+        phone:data.phone,
+        dob:{
+          month:dateofbirth[0],
+          day:dateofbirth[1],
+          year:dateofbirth[2]
+        },
+        address:{
+          line1:data.line1,
+          state:data.state,
+          postal_code:data.postal_code,
+          city:data.city,
+          country:"US"
+        }
+      },
+          business_profile:{
+            url:data.businesweb,
+            mcc:data.mcc
+          },
+          tos_acceptance:{
+            ip:req.connection.remoteAddress,
+            date:Math.floor(Date.now()/1000)
+          }
+      }
+      stripe.accounts.create(account, function(err, response) {
+        if(err){
+            console.log(err)
+            res.json({
+                message:"Failed"
+            })
+        }
+        else{            
+            let profile = {
+          businessType:"individual",
+          first_name:data.first_name,
+            last_name:data.last_name,
+            gender:data.gender,
+            ssn:data.ssn,
+            email:data.email,
+            phone:data.phone,
+            address:{
+                line1:data.line1,
+                state:data.state,
+                postal_code:data.postal_code,
+                city:data.city,
+                country:"US",
+                mcc:data.mcc
+              },
+              dob:{
+                month:dateofbirth[0],
+                day:dateofbirth[1],
+                year:dateofbirth[2]
+              },
+              firebaseUID:data.firebaseUID,
+              accountID:response.account,
+              businesweb:data.businesweb
+            }
+            PaymentInfo.create(profile,(err,doc)=>{
+                if(err)throw err
+                console.log(doc)
+                res.json({
+                  message:"Success",
+                  doc
+                })
+            })
+        }
+      });
+    }
+  })
+  app.post('/person',(req,res)=>{
+    stripe.accounts.createPerson(
+      'acct_1EaXXRCEW9pT8D0d',
+      req.body,
+      function(err, person) {
+        if(err) throw err
+        res.json({
+          message:"Success",
+          person
+        })
+      }
+    );
+  })
+  app.post('/createexternalacc',(req,res)=>{
+    /*
+        country: '',
+        currency: '',
+        account_holder_name: '',
+        account_holder_type: '',
+        routing_number: '',
+        account_number:''
+    */
+    let data = {
+        routing_number:req.body.routing_number,
+        account_holder_name:req.body.account_holder_name,
+        account_holder_type:req.body.account_holder_type,
+        currency:"usd",
+        country:'US',
+        account_number:req.body.account_number
+    }
+    stripe.tokens.create({
+      bank_account:data
+    }, function(err, token) {
+        if(err)console.log(err)
+        else{
+            stripe.accounts.createExternalAccount(
+                'acct_1EaueMGIzkaeqJz2',
+                {
+                  external_account:token.id,
+                },
+                function(err, bank_account) {
+                  // asynchronously called
+                  if(err)res.json({message:"Falied"})
+                else{
+                    console.log(bank_account)
+                    let acct = {
+                        ...data,
+                        firebaseUID:req.body.firebaseUID
+                    }
+                    ExternalAccount.create(acct,(err,doc)=>{
+                        res.json({
+                            message:"Success",
+                            doc
+                        })
+                    })
+                }
+                }
+              );
+        }
+    });
+  })
 app.put('/api/searchListing', (req, res) => {
     Listings.find({ $text: { $search: req.body.title } })
         .limit(10)

@@ -20,14 +20,6 @@ const addressSchema = new mongoose.Schema({
         type:String
     }
 })
-const verificationDocument = new mongoose.Schema({
-    back:{
-        type:String
-    },
-    front:{
-        type:String
-    }
-})
 const dobSchema = new mongoose.Schema({
     day:{
         type:Number,
@@ -45,12 +37,10 @@ const dobSchema = new mongoose.Schema({
 const PaymentInfoSchema = new mongoose.Schema({
   email:{
       type:String,
-      required:[true,'Email is required'],
       unique:true
   },
   first_name:{
-      type:String,
-      required:[true,'Full Name is required']
+      type:String
   },
   firebaseUID:{
       type:String
@@ -70,29 +60,32 @@ const PaymentInfoSchema = new mongoose.Schema({
       type:String,
   },
   phone:{
-      type:Number
+      type:String
   },
   dob:{
       type:dobSchema
   },
   ssn:{
-      type:Number
+      type:String
   },
   state:{
       type:String
   },
-  verification:{
-    type:verificationDocument
-  },
-  industry:{
+  mcc:{
       type:String
   },
-  businessWeb:{
+  businesWeb:{
       type:String
   },
   gender:{
       type:String
-  }
+  },
+  taxId:{
+      type:String
+  },
+  accountID:{
+      type:String
+  },
 });
 
 module.exports = mongoose.model('PaymentInfo', PaymentInfoSchema);
