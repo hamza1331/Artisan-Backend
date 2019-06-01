@@ -29,7 +29,6 @@ app.get('/', function (req, res) {  //HomePage for API
 })
 
 app.post('/api/addUser', (req, res) => {
-    console.log(req.body)
     const user = req.body
     User.create(user, (err, doc) => {
         if (err) {
@@ -55,8 +54,6 @@ app.put('/api/addImage', (req, res) => {
     }
 })
 app.post('/api/status', (req, res) => {
-
-
     User.findOne({ firebaseUID: req.body.firebaseUID }, 'isLoggedIn', (err, data) => {
         if (err) res.json(err)
         res.json({
@@ -77,9 +74,76 @@ app.put('/api/login', (req, res) => {
         })
     })
 })
+app.post('/api/checkgoogle',(req,res)=>{
+    /*
+    photoURL:
+   'https://lh6.googleusercontent.com/-I0Tlk-_p1Ro/AAAAAAAAAAI/AAAAAAAAAIY/PUV7eqmicSk/s96-c/photo.jpg',
+  displayName: 'Hamza Ali',
+  email: 'hamxa1331@gmail.com',
+  isAnonymous: false,
+  emailVerified: true,
+  providerId: 'firebase',
+  uid: 'QdTe1vcjiBZwWrKzyaV4TAghGP93' 
+    */
+    let {displayName,email,photoURL,uid} = req.body
+    let firebaseUID = uid
+    let data = {
+        fName:displayName,
+        email,
+        firebaseUID,
+        profilePic:photoURL
+    }
+    User.findOne({firebaseUID},(err,doc)=>{
+        if(doc===null){
+            User.create(data,(error,user)=>{
+                if(user){
+                    Activity.create({ firebaseUID: user.firebaseUID })
+                    res.json({
+                        message:"Success",
+                        doc
+                    })
+                }
+            })
+        }
+        else{
+            User.findOneAndUpdate({firebaseUID}, { $set: { isLoggedIn: true } }, { new: true }, (err, doc) => {
+                if (err) res.json(err)
+                res.json({
+                    message: 'Success',
+                     doc
+                })
+            })
+        }
+    })
+})
+app.put('/api/fbLogin',(req,res)=>{
+    let {firebaseUID} = req.body
+    User.findOne({firebaseUID},(err,doc)=>{
+        if(doc===null){
+            User.create(req.body,(error,user)=>{
+                if(user){
+                    res.json({
+                        message:"Success",
+                        doc
+                    })
+                    Activity.create({ firebaseUID: user.firebaseUID })
+                }
+            })
+        }
+        else{
+            User.findOneAndUpdate({firebaseUID}, { $set: { isLoggedIn: true } }, { new: true }, (err, doc) => {
+                if (err) res.json(err)
+                res.json({
+                    message: 'Success',
+                     doc
+                })
+            })
+        }
+    })
+})
 app.put('/api/logout', (req, res) => {
-    const firebaseUID = req.body
-    User.findOneAndUpdate(firebaseUID, { isLoggedIn: false }, { new: true }, (err, doc) => {
+    const {firebaseUID} = req.body
+    User.findOneAndUpdate({firebaseUID}, { isLoggedIn: false }, { new: true }, (err, doc) => {
         if (err) res.json(err)
         res.json({
             message: 'Success',
@@ -259,6 +323,15 @@ app.get('/api/getListing:listingId', (req, res) => {
         })
     })
 })
+app.put('/api/dislike',(req,res)=>{
+    Activity.findOneAndUpdate({firebaseUID:req.body.firebaseUID},{$pull:{Favorites:req.body.id}},{new:true},(err,doc)=>{
+        if(err)res.json({message:"Falied"})
+        res.json({
+            message:"Success",
+            doc
+        })
+    })
+})
 app.get('/api/getCategories',(req,res)=>{
     Category.find({},(err,docs)=>{
         if(err)throw err
@@ -268,8 +341,8 @@ app.get('/api/getCategories',(req,res)=>{
         })
     })
 })
-app.get('/api/getShipping:firebaseUID', (req, res) => {
-    Shipping.findOne({ firebaseUID: req.params.firebaseUID }, (err, docs) => {
+app.get('/api/getShippings:firebaseUID', (req, res) => {
+    Shipping.find({ firebaseUID: req.params.firebaseUID }, (err, docs) => {
         if (err) res.json(err)
         res.json({
             message: "Success",
@@ -277,11 +350,65 @@ app.get('/api/getShipping:firebaseUID', (req, res) => {
         })
     })
 })
+app.get('/api/getShipping:id',(req,res)=>{
+    Shipping.findById(req.params.id,(err,doc)=>{
+        if(err)res.json({message:"Failed",err})
+       else res.json({
+            message:"Success",
+            data:doc
+        })
+    })
+})
+app.delete('/api/deleteShipping:id',(req,res)=>{
+    Shipping.findByIdAndDelete(req.params.id,(err,doc)=>{
+        if(err)res.json({message:"Failed",err})
+        else{
+            res.json({
+                message:"Success",
+                doc
+            })
+        }
+    })
+})
+app.post('/api/getFilteredShippings',(req,res)=>{
+    Shipping.find({firebaseUID:req.body.id,type:req.body.type},(err,docs)=>{
+        if(err)res.json({message:"Failed",err})
+        else{
+            res.json({
+                message:"Success",
+                docs
+            })
+        }
+    })
+})
+
+app.put('/api/updateShipping:id',(req,res)=>{
+    const query = Object.assign({}, req.body)
+    let id = req.params.id
+    Shipping.findByIdAndUpdate(id,query,{new:true},(err,doc)=>{
+        if(err)res.json({message:'Failed',err})
+        else{
+            res.json({
+                message:"Success",
+                doc
+            })
+        }
+    })
+})
+app.get('/api/getShips',(req,res)=>{
+    Shipping.find({},(err,docs)=>{
+        if(err)res.json({
+            message:"Failed",
+            err
+        })
+        res.json({
+            message:"Success",
+            docs
+        })
+    })
+})
 app.put('/api/addShipping', (req, res) => {
-    Shipping.findOne({ firebaseUID: req.body.firebaseUID }, (err, docs) => {
-        if (err) throw err
-        if (docs === null) {    //insert
-            let data = req.body
+    let data = req.body
             Shipping.create(data, (err, docs) => {
                 if (err) res.json(err)
                 return res.json({
@@ -289,18 +416,10 @@ app.put('/api/addShipping', (req, res) => {
                     data: docs
                 })
             })
-        }
-        else {           //update
-            let data = req.body
-            Shipping.findOneAndUpdate({ firebaseUID: req.body.firebaseUID }, data, { new: true }, (err, doc) => {
-                if (err) throw err
-                return res.json({
-                    message: "Success",
-                    data: doc
-                })
-            })
-        }
-    })
+})
+app.put('/api/editShipping:id',(req,res)=>{
+    let id = req.body.id
+
 })
 
 app.get('/api/getProfile:firebaseUID', (req, res) => {
@@ -354,6 +473,21 @@ app.put('/api/addFavorite', (req, res) => {
             data: docs
         })
     })
+})
+app.get('/api/getFavoriteIds:firebaseUID',(req,res)=>{
+    if(req.params.firebaseUID!==null){
+        Activity.findOne({firebaseUID:req.params.firebaseUID},'Favorites',(err,docs)=>{
+            if(err)res.json({
+                message:"Failed"
+            })
+            else{
+                res.json({
+                    message:"Success",
+                    docs
+                })
+            }
+        })
+    }
 })
 app.get('/api/getFavorites:firebaseUID',(req,res)=>{
     Activity.findOne({firebaseUID:req.params.firebaseUID},'Favorites',(err,doc)=>{
@@ -504,7 +638,7 @@ app.post('/paym',(req,res)=>{
         source: "tok_visa",
         application_fee_amount:collfee,   //platform pese
       }, {
-        stripe_account: "acct_1EaXXRCEW9pT8D0d",  //jis ko bhej rahe hain...
+        stripe_account: "acct_1EaueMGIzkaeqJz2",  //jis ko bhej rahe hain...
       }).then(function(charge) {
         res.json({
           message:"Success",
@@ -524,6 +658,21 @@ app.post('/paym',(req,res)=>{
             })
           }
       })
+  })
+  app.get('/api/getPaymentInfo:firebaseUID',(req,res)=>{
+    PaymentInfo.findOne({firebaseUID:req.params.firebaseUID},(err,doc)=>{
+        if(doc!==null){
+            console.log(doc)
+            res.json({
+                message:"Success",
+                doc
+            })
+        }
+
+        else{
+            res.json({message:"Failed"})
+        }
+    })
   })
   app.get('/tos',(req,res)=>{
   
