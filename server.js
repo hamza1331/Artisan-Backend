@@ -16,6 +16,7 @@ const Icons = require('./models/Icons')
 const stripe = require("stripe")("sk_test_HoPdfcNw4Z50hxhA5wbEeT62002SCwGUWP");
 const port = process.env.PORT || 5000
 const ExternalAccount = require('./models/ExternalAccounts')
+const Orders = require('./models/Orders')
 const cors = require('cors')
 const client = require('socket.io').listen(5001).sockets;
 app.use(bodyParser.json())  //Body Parser MiddleWare
@@ -489,6 +490,7 @@ app.get('/api/getFavoriteIds:firebaseUID',(req,res)=>{
         })
     }
 })
+
 app.get('/api/getFavorites:firebaseUID',(req,res)=>{
     Activity.findOne({firebaseUID:req.params.firebaseUID},'Favorites',(err,doc)=>{
         if(err){
@@ -501,6 +503,52 @@ app.get('/api/getFavorites:firebaseUID',(req,res)=>{
                 console.log(objecIDs)
                 if (ids.length > 0) {
                     Listings.find({ _id: { $in: objecIDs } }, (err, docs) => {
+                        if (err) throw err
+                        if (docs.length > 0)
+                            res.json({
+                                message: "Success",
+                                data: docs
+                            })
+                    })
+                }
+
+        }
+    })
+})
+app.get('/api/getPurchases:firebaseUID',(req,res)=>{
+    Activity.findOne({firebaseUID:req.params.firebaseUID},'Purchases',(err,doc)=>{
+        if(err){
+            console.log(err)
+            res.json({message:'Failed'})
+        }
+        else{
+                let ids = doc.Purchases
+                let objecIDs = ids.map(id => mongoose.Types.ObjectId(id))
+                if (ids.length > 0) {
+                    Orders.find({ _id: { $in: objecIDs } }, (err, docs) => {
+                        if (err) throw err
+                        if (docs.length > 0)
+                            res.json({
+                                message: "Success",
+                                data: docs
+                            })
+                    })
+                }
+
+        }
+    })
+})
+app.get('/api/Orders:firebaseUID',(req,res)=>{
+    Activity.findOne({firebaseUID:req.params.firebaseUID},'Orders',(err,doc)=>{
+        if(err){
+            console.log(err)
+            res.json({message:'Failed'})
+        }
+        else{
+                let ids = doc.Orders
+                let objecIDs = ids.map(id => mongoose.Types.ObjectId(id))
+                if (ids.length > 0) {
+                    Orders.find({ _id: { $in: objecIDs } }, (err, docs) => {
                         if (err) throw err
                         if (docs.length > 0)
                             res.json({
@@ -626,23 +674,40 @@ app.put('/api/getMessages', (req, res) => {         //get messages of a chat fro
     })
 })
 app.post('/paym',(req,res)=>{
-    var collfeefloat=req.body.amount*0.2
+    console.log('called...')
+    var collfeefloat=req.body.amount*0.1
    var collfee= Math.ceil(collfeefloat)
     stripe.customers.create({
       email:req.body.token.email,   //khareed rha hai..
       source:req.body.token.id    //us ki taraf se stipe token ID
     }).then((customer) => {
+        console.log('customer')
       return stripe.charges.create({
         amount:req.body.amount,
         currency: "usd",
-        source: "tok_visa",
+        source: 'tok_visa',
         application_fee_amount:collfee,   //platform pese
       }, {
         stripe_account: "acct_1EaueMGIzkaeqJz2",  //jis ko bhej rahe hain...
       }).then(function(charge) {
-        res.json({
-          message:"Success",
-          charge
+          console.log(charge)
+        let data = Object.assign({}, req.body)
+        delete data.token
+        Orders.create(data,(err,doc)=>{
+            if(err){
+                console.log(err)
+                res.json({message:"Failed",err})
+            }
+            else{
+                console.log(doc)
+                Activity.findOneAndUpdate({ firebaseUID: req.body.buyerFirebaseUID }, { $push: { Purchases: doc._id } }, { new: true }, (err, res) => console.log('Buyer DOne...', res))
+                Activity.findOneAndUpdate({ firebaseUID: req.body.sellerFirebaseUID }, { $push: { Orders: doc._id } }, { new: true }, (err, res) => console.log('Seller DOne...', res))
+                res.json({
+                    message:"Success",
+                    doc,
+                    charge
+                })
+            }
         })
       });
     });  
