@@ -1,6 +1,9 @@
 //Imports
 const express = require('express')
+var http = require('http');
+
 const app = express()
+var server = http.createServer(app);
 const process = require('process')
 const bodyParser = require('body-parser')
 const User = require('./models/User')
@@ -13,15 +16,15 @@ const Chats = require('./models/Chats')
 const Reports = require('./models/Reports')
 const PaymentInfo = require('./models/PaymentInfo')
 const Icons = require('./models/Icons')
-const stripe = require("stripe")("sk_test_HoPdfcNw4Z50hxhA5wbEeT62002SCwGUWP");
+const stripe = require("stripe")(process.env.LIVE_KEY);
 const port = process.env.PORT || 5000
 const ExternalAccount = require('./models/ExternalAccounts')
 const Orders = require('./models/Orders')
 const cors = require('cors')
-const client = require('socket.io').listen(5001).sockets;
+const client = require('socket.io').listen(server).sockets;
 app.use(bodyParser.json())  //Body Parser MiddleWare
 app.use(express.json())
-mongoose.connect('mongodb://demo:demo123@ds137441.mlab.com:37441/artisan', { useNewUrlParser: true }) //MongoDB connection using Mongoose
+mongoose.connect('mongodb://demo:demo123@ds133137.mlab.com:33137/puroartisan', { useNewUrlParser: true }) //MongoDB connection using Mongoose
 var db = mongoose.connection //Mongo Connection Instance
 db.on('open', () => console.log('database connected'))
 app.use(cors())
@@ -75,6 +78,12 @@ app.put('/api/login', (req, res) => {
         })
     })
 })
+app.post('/api/googleError',(req,res)=>{
+    console.log(req.body)
+    res.json({
+        message:"OK"
+    })
+})
 app.post('/api/checkgoogle',(req,res)=>{
     /*
     photoURL:
@@ -92,16 +101,19 @@ app.post('/api/checkgoogle',(req,res)=>{
         fName:displayName,
         email,
         firebaseUID,
-        profilePic:photoURL
+        profilePic:photoURL,
+        isLoggedIn:true
     }
+    console.log('google')
     User.findOne({firebaseUID},(err,doc)=>{
         if(doc===null){
             User.create(data,(error,user)=>{
                 if(user){
+                console.log(doc)
                     Activity.create({ firebaseUID: user.firebaseUID })
                     res.json({
                         message:"Success",
-                        doc
+                        doc:user
                     })
                 }
             })
@@ -109,6 +121,7 @@ app.post('/api/checkgoogle',(req,res)=>{
         else{
             User.findOneAndUpdate({firebaseUID}, { $set: { isLoggedIn: true } }, { new: true }, (err, doc) => {
                 if (err) res.json(err)
+                console.log(doc)
                 res.json({
                     message: 'Success',
                      doc
@@ -167,8 +180,6 @@ app.post('/api/addListing', (req, res) => {
 })
 app.put('/api/addToken',(req,res)=>{
     const {token} = req.body
-    console.log(token)
-    console.log(typeof token)
     if(token){
         User.findOneAndUpdate({firebaseUID:req.body.firebaseUID},{$push:{tokens:token}},{new:true},(err,doc)=>{
             if(err)throw err
@@ -219,7 +230,6 @@ app.post('/api/getListings:page', (req, res) => {
     const query = Object.assign({}, req.body)
     var perPage = 20
     var page = req.params.page || 1
-    console.log(query)
     if (query.hasOwnProperty("minPrice")) {
         delete query.minPrice
         delete query.maxPrice
@@ -518,7 +528,6 @@ app.get('/api/getFavorites:firebaseUID',(req,res)=>{
 app.get('/api/getPurchases:firebaseUID',(req,res)=>{
     Activity.findOne({firebaseUID:req.params.firebaseUID},'Purchases',(err,doc)=>{
         if(err){
-            console.log(err)
             res.json({message:'Failed'})
         }
         else{
@@ -541,7 +550,6 @@ app.get('/api/getPurchases:firebaseUID',(req,res)=>{
 app.get('/api/Orders:firebaseUID',(req,res)=>{
     Activity.findOne({firebaseUID:req.params.firebaseUID},'Orders',(err,doc)=>{
         if(err){
-            console.log(err)
             res.json({message:'Failed'})
         }
         else{
@@ -674,23 +682,19 @@ app.put('/api/getMessages', (req, res) => {         //get messages of a chat fro
     })
 })
 app.post('/paym',(req,res)=>{
-    console.log('called...')
-    var collfeefloat=req.body.amount*0.1
+    var collfeefloat=req.body.Category==='Services'?req.body.amount*0.2:req.body.amount*0.1
    var collfee= Math.ceil(collfeefloat)
     stripe.customers.create({
       email:req.body.token.email,   //khareed rha hai..
-      source:req.body.token.id    //us ki taraf se stipe token ID
     }).then((customer) => {
-        console.log('customer')
       return stripe.charges.create({
         amount:req.body.amount,
         currency: "usd",
-        source: 'tok_visa',
+        source: req.body.token.id,
         application_fee_amount:collfee,   //platform pese
       }, {
-        stripe_account: "acct_1EaueMGIzkaeqJz2",  //jis ko bhej rahe hain...
+        stripe_account: req.body.accountID,  //jis ko bhej rahe hain...
       }).then(function(charge) {
-          console.log(charge)
         let data = Object.assign({}, req.body)
         delete data.token
         Orders.create(data,(err,doc)=>{
@@ -829,7 +833,7 @@ app.post('/paym',(req,res)=>{
                 year:dateofbirth[2]
               },
               firebaseUID:data.firebaseUID,
-              accountID:response.account,
+              accountID:response.id,
               businesweb:data.businesweb
             }
             PaymentInfo.create(profile,(err,doc)=>{
@@ -880,7 +884,7 @@ app.post('/paym',(req,res)=>{
         if(err)console.log(err)
         else{
             stripe.accounts.createExternalAccount(
-                'acct_1EaueMGIzkaeqJz2',
+                req.body.accountID,
                 {
                   external_account:token.id,
                 },
@@ -979,7 +983,7 @@ client.on('connection', (socket) => {
     });
 });
 //Server
-app.listen(port, function () {
+server.listen(port, function () {
     console.log('Listening on port' + port)
 })
 
