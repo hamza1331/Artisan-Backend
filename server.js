@@ -24,10 +24,46 @@ const cors = require('cors')
 const client = require('socket.io').listen(server).sockets;
 app.use(bodyParser.json())  //Body Parser MiddleWare
 app.use(express.json())
-mongoose.connect('mongodb://demo:demo123@ds133137.mlab.com:33137/puroartisan', { useNewUrlParser: true }) //MongoDB connection using Mongoose
+const url = 'mongodb://demo:demo123@ds133137.mlab.com:33137/puroartisan'
+const url2 = 'mongodb://demo:demo123@ds347467.mlab.com:47467/artisanpractice'
+
+mongoose.connect(url, { useNewUrlParser: true }) //MongoDB connection using Mongoose
 var db = mongoose.connection //Mongo Connection Instance
 db.on('open', () => console.log('database connected'))
 app.use(cors())
+const admin = require("firebase-admin");
+const serviceAccount = require('./pureartisanapp-firebase-adminsdk.json');
+app.use(bodyParser())
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: "https://pureartisanapp.firebaseio.com"
+});
+
+
+app.post('/api/sendNotification',(req,res)=>{
+    let data = req.body
+    const message={
+        notification: {
+            body: data.notification.message,
+            title: data.notification.fName
+          },
+          tokens:data.tokens
+    }
+    admin.messaging().sendMulticast(message)
+  .then((response) => {
+    // Response is a message ID string.
+    res.json({message:'Success'})
+    if (response.failureCount > 0) {
+        const failedTokens = [];
+        response.responses.forEach((resp, idx) => {
+          if (!resp.success) {
+            failedTokens.push(data.tokens[idx]);
+          }
+        });
+        console.log('List of tokens that caused failures: ' + failedTokens);
+      }
+  })
+})
 app.get('/', function (req, res) {  //HomePage for API
     res.json({ message: 'Welcome' })
 })
@@ -72,6 +108,7 @@ app.put('/api/login', (req, res) => {
     const firebaseUID = req.body
     User.findOneAndUpdate(firebaseUID, { $set: { isLoggedIn: true } }, { new: true }, (err, doc) => {
         if (err) res.json(err)
+        console.log(doc)
         res.json({
             message: 'Success',
             user: doc
@@ -85,16 +122,6 @@ app.post('/api/googleError',(req,res)=>{
     })
 })
 app.post('/api/checkgoogle',(req,res)=>{
-    /*
-    photoURL:
-   'https://lh6.googleusercontent.com/-I0Tlk-_p1Ro/AAAAAAAAAAI/AAAAAAAAAIY/PUV7eqmicSk/s96-c/photo.jpg',
-  displayName: 'Hamza Ali',
-  email: 'hamxa1331@gmail.com',
-  isAnonymous: false,
-  emailVerified: true,
-  providerId: 'firebase',
-  uid: 'QdTe1vcjiBZwWrKzyaV4TAghGP93' 
-    */
     let {displayName,email,photoURL,uid} = req.body
     let firebaseUID = uid
     let data = {
@@ -135,7 +162,13 @@ app.put('/api/fbLogin',(req,res)=>{
     User.findOne({firebaseUID},(err,doc)=>{
         if(doc===null){
             User.create(req.body,(error,user)=>{
+                if (error) {
+                    console.log(error)
+                    res.json(error)
+                }
                 if(user){
+                    console.log('updated')
+                    console.log(doc)
                     res.json({
                         message:"Success",
                         doc
@@ -146,11 +179,18 @@ app.put('/api/fbLogin',(req,res)=>{
         }
         else{
             User.findOneAndUpdate({firebaseUID}, { $set: { isLoggedIn: true } }, { new: true }, (err, doc) => {
-                if (err) res.json(err)
-                res.json({
-                    message: 'Success',
-                     doc
-                })
+                if (err) {
+                    console.log(err)
+                    res.json(err)
+                }
+                else{
+                    console.log('created')
+                    console.log(doc)
+                    res.json({
+                        message: 'Success',
+                        doc
+                    })
+                }
             })
         }
     })
@@ -682,7 +722,7 @@ app.put('/api/getMessages', (req, res) => {         //get messages of a chat fro
     })
 })
 app.post('/paym',(req,res)=>{
-    var collfeefloat=req.body.Category==='Services'?req.body.amount*0.2:req.body.amount*0.1
+    var collfeefloat=req.body.Category==='Jobs & Services'?req.body.amount*0.2:req.body.amount*0.1
    var collfee= Math.ceil(collfeefloat)
     stripe.customers.create({
       email:req.body.token.email,   //khareed rha hai..
@@ -771,7 +811,7 @@ app.post('/paym',(req,res)=>{
       let account = {
         default_currency:"usd",
         type:"custom",
-        country:"US",
+        country:data.country,
       requested_capabilities:["card_payments"],
       business_type:"individual",
       individual:{
@@ -791,7 +831,7 @@ app.post('/paym',(req,res)=>{
           state:data.state,
           postal_code:data.postal_code,
           city:data.city,
-          country:"US"
+          country:data.country
         }
       },
           business_profile:{
@@ -824,7 +864,7 @@ app.post('/paym',(req,res)=>{
                 state:data.state,
                 postal_code:data.postal_code,
                 city:data.city,
-                country:"US",
+                country:data.country,
                 mcc:data.mcc
               },
               dob:{

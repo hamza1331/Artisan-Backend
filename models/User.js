@@ -2,8 +2,7 @@ const mongoose = require('mongoose');
 const UserSchema = new mongoose.Schema({
   email:{
       type:String,
-      required:[true,'Email is required'],
-      unique:true
+      required:[true,'Email is required']
   },
   fName:{
       type:String,
@@ -13,7 +12,8 @@ const UserSchema = new mongoose.Schema({
       type:String
   },
   firebaseUID:{
-      type:String
+      type:String,
+      unique:true
   },
   isLoggedIn:{
       type:Boolean,
@@ -25,6 +25,9 @@ const UserSchema = new mongoose.Schema({
   },
   tokens:{
       type:[String]
+  },
+  country:{
+      type:String
   }
 
 });
