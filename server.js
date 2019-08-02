@@ -10,9 +10,11 @@ const User = require('./models/User')
 const mongoose = require('mongoose')
 const Listings = require('./models/Listings')
 const Activity = require('./models/ProfileActivity')
+const ListingReport = require('./models/ListingReport')
 const Shipping = require('./models/Shipping')
 const Category = require('./models/Categories')
 const Chats = require('./models/Chats')
+const url = 'mongodb://demo:demo123@ds347467.mlab.com:47467/artisanpractice'
 const Reports = require('./models/Reports')
 const PaymentInfo = require('./models/PaymentInfo')
 const Icons = require('./models/Icons')
@@ -24,20 +26,63 @@ const cors = require('cors')
 const client = require('socket.io').listen(server).sockets;
 app.use(bodyParser.json())  //Body Parser MiddleWare
 app.use(express.json())
-const url = 'mongodb://demo:demo123@ds133137.mlab.com:33137/puroartisan'
-const url2 = 'mongodb://demo:demo123@ds347467.mlab.com:47467/artisanpractice'
-
-mongoose.connect(url, { useNewUrlParser: true }) //MongoDB connection using Mongoose
-var db = mongoose.connection //Mongo Connection Instance
-db.on('open', () => console.log('database connected'))
 app.use(cors())
-const admin = require("firebase-admin");
+// const admin = require("firebase-admin");
 const serviceAccount = require('./pureartisanapp-firebase-adminsdk.json');
 app.use(bodyParser())
+
+var admin = require("firebase-admin");
+
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
   databaseURL: "https://pureartisanapp.firebaseio.com"
 });
+
+
+mongoose.connect(url, { useNewUrlParser: true }) //MongoDB connection using Mongoose
+var db = mongoose.connection //Mongo Connection Instance
+db.on('open', () => console.log('database connected'))  
+
+ app.delete("/api/deleteAdminOrUSer",(req,res)=>{
+      admin.auth().deleteUser(req.body.uid)
+    .then(()=> {
+       
+        res.json({
+            message: "success",
+
+        })
+    })
+    .catch(function(error) {
+        res.json({
+            message: "Fail",
+
+        })
+    });
+  })
+app.put("/api/createUser",(req,res)=>{
+    admin.auth().createUser({
+        email: req.body.email,
+        password: req.body.password,
+        displayName: req.body.name,
+        disabled: false
+      })
+        .then(function(userRecord) {
+          // See the UserRecord reference doc for the contents of userRecord.
+          console.log('Successfully created new user:', userRecord.uid);
+          
+        })
+        .catch(function(error) {
+          console.log('Error creating new user:', error);
+        });
+})
+
+
+
+
+
+
+
+//   yahan takk
 
 
 app.post('/api/sendNotification',(req,res)=>{
@@ -64,6 +109,9 @@ app.post('/api/sendNotification',(req,res)=>{
       }
   })
 })
+
+
+
 app.get('/', function (req, res) {  //HomePage for API
     res.json({ message: 'Welcome' })
 })
@@ -102,6 +150,7 @@ app.post('/api/status', (req, res) => {
         })
     })
 })
+
 
 app.put('/api/login', (req, res) => {
     console.log('API call', req.body)
@@ -158,6 +207,7 @@ app.post('/api/checkgoogle',(req,res)=>{
     })
 })
 app.put('/api/fbLogin',(req,res)=>{
+    console.log(req.body)
     let {firebaseUID} = req.body
     User.findOne({firebaseUID},(err,doc)=>{
         if(doc===null){
@@ -167,11 +217,11 @@ app.put('/api/fbLogin',(req,res)=>{
                     res.json(error)
                 }
                 if(user){
-                    console.log('updated')
-                    console.log(doc)
+                    console.log('created')
+                    console.log(user)
                     res.json({
                         message:"Success",
-                        doc
+                       doc:user
                     })
                     Activity.create({ firebaseUID: user.firebaseUID })
                 }
@@ -184,7 +234,7 @@ app.put('/api/fbLogin',(req,res)=>{
                     res.json(err)
                 }
                 else{
-                    console.log('created')
+                    console.log('updated')
                     console.log(doc)
                     res.json({
                         message: 'Success',
@@ -266,6 +316,7 @@ app.post('/api/findByLocation',(req,res)=>{
 
      })
 })
+
 app.post('/api/getListings:page', (req, res) => {
     const query = Object.assign({}, req.body)
     var perPage = 20
@@ -458,16 +509,7 @@ app.get('/api/getShips',(req,res)=>{
         })
     })
 })
-app.put('/api/addShipping', (req, res) => {
-    let data = req.body
-            Shipping.create(data, (err, docs) => {
-                if (err) res.json(err)
-                return res.json({
-                    message: "Success",
-                    data: docs
-                })
-            })
-})
+
 app.put('/api/editShipping:id',(req,res)=>{
     let id = req.body.id
 
@@ -516,15 +558,7 @@ app.delete('/api/deleteCategory', (req, res) => {
         })
     })
 })
-app.put('/api/addFavorite', (req, res) => {
-    Activity.findOneAndUpdate({ firebaseUID: req.body.firebaseUID }, { $push: { Favorites: req.body.id } }, { new: true }, (err, docs) => {
-        if (err) res.json(err)
-        res.json({
-            message: "Success",
-            data: docs
-        })
-    })
-})
+
 app.get('/api/getFavoriteIds:firebaseUID',(req,res)=>{
     if(req.params.firebaseUID!==null){
         Activity.findOne({firebaseUID:req.params.firebaseUID},'Favorites',(err,docs)=>{
@@ -756,6 +790,7 @@ app.post('/paym',(req,res)=>{
       });
     });  
   })
+
   app.get('/api/getUserListings:firebaseUID',(req,res)=>{
       Listings.find({firebaseUID:req.params.firebaseUID},(err,docs)=>{
           if(err)res.json({message:"Failed"})
@@ -951,7 +986,7 @@ app.post('/paym',(req,res)=>{
   })
 app.put('/api/searchListing', (req, res) => {
     Listings.find({ $text: { $search: req.body.title } })
-        .limit(10)
+        .limit(30)
         .exec((err, docs) => {
             if (err) throw err
             res.json(docs)
@@ -1023,7 +1058,408 @@ client.on('connection', (socket) => {
     });
 });
 //Server
-server.listen(port, function () {
+
+// my server.js
+// 
+// 
+// 
+// 
+// 
+
+//Imports
+
+
+
+ 
+//   rest of server calls
+
+
+
+app.get("/api/allUsers",(req,res)=>{
+    User.find({} , (err , sales)=>{
+        if (err){
+            res.json({
+                message: "fail",
+    
+            })
+        }
+        res.json(sales)
+       })
+})
+app.get("/api/AllListings",(req,res)=>{
+    Listings.find({} , (err , sales)=>{
+        if (err){
+            res.json({
+                message: "failed",
+    
+            })
+        }
+        res.json(sales)
+       })
+})
+app.get("/api/AllSales",(req,res)=>{
+    Orders.find({} , (err , sales)=>{
+        if (err){
+            res.json({
+                message: "fail",
+    
+            })
+        }
+        res.json(sales)
+       })
+})
+
+app.get("/api/AllCatigories",(req,res)=>{
+    Category.find({} , (err , sales)=>{
+        if (err){
+            res.json({
+                message: "failed",
+    
+            })
+        }
+        res.json(sales)
+       })
+})
+
+
+
+
+
+app.post('/api/getOrders', (req, res) => {
+    Orders.find({} , (err , sales)=>{
+     if (err){
+        res.json({
+            message: "failed",
+
+        })
+     }
+     res.json(sales)
+    })
+ })
+ app.delete('/api/deletOrder',(req,res)=>{
+    Orders.findByIdAndRemove(req.body.id, (err, doc) => {
+        if (err) res.json(err)
+        res.json({
+            message: "Success",
+            data: doc
+        })
+    })
+ })
+ app.delete('/api/deleteListing',(req,res)=>{
+    Listings.findByIdAndRemove(req.body.id, (err, doc) => {
+        if (err) res.json(err)
+        res.json({
+            message: "Success",
+            data: doc
+        })
+    })
+ })
+
+
+
+app.post('/api/getFilteredListings:page',(req,res)=>{
+    const query = Object.assign({}, req.body)
+    var perPage = 20
+    var page = req.params.page || 1
+    if (query.hasOwnProperty('last')) {
+        let startDate = new Date()
+        startDate.setDate(startDate.getDate() - query.last)
+        startDate.setHours(0)   // Set the hour, minute and second components to 0
+        startDate.setMinutes(0)
+        startDate.setSeconds(0)
+        Listings.find({
+            trade: query.trade,shippingNational:query.shippingNational,shippingInternational:query.shippingInternational,
+                price: {
+                $gte: req.body.minPrice
+            },
+            createdDate: { $gte: startDate }
+        }).skip((perPage * page) - perPage).limit(perPage).exec((err, data) => {
+
+            Listings.estimatedDocumentCount().exec((err, count) => {
+                if (err) return res.json({ message: err })
+               else res.json({
+                    data,
+                    current: page,
+                    pages: Math.ceil(count / perPage)
+                })
+            })
+        })
+    }
+    
+})
+
+
+
+
+app.get('/api/getShipping:firebaseUID', (req, res) => {
+    Shipping.findOne({ firebaseUID: req.params.firebaseUID }, (err, docs) => {
+        if (err) res.json(err)
+        res.json({
+            message: "Success",
+            data: docs
+        })
+    })
+})
+app.put('/api/addShipping', (req, res) => {
+    Shipping.findOne({ firebaseUID: req.body.firebaseUID }, (err, docs) => {
+        if (err) throw err
+        if (docs === null) {    //insert
+            let data = req.body
+            Shipping.create(data, (err, docs) => {
+                if (err) res.json(err)
+                return res.json({
+                    message: "Success",
+                    data: docs
+                })
+            })
+        }
+        else {           //update
+            let data = req.body
+            Shipping.findOneAndUpdate({ firebaseUID: req.body.firebaseUID }, data, { new: true }, (err, doc) => {
+                if (err) throw err
+                return res.json({
+                    message: "Success",
+                    data: doc
+                })
+            })
+        }
+    })
+})
+
+app.delete('/api/deleteUser',(req,res)=>{
+    User.findByIdAndRemove(req.body.id, (err, doc) => {
+        if (err) res.json(err)
+        res.json({
+            message: "Success",
+            data: doc
+        })
+    })
+ })
+app.delete('/api/deleteActivityUserUID',(req,res)=>{
+    Activity.findOneAndDelete(req.body.uid, (err, doc) => {
+        if (err) res.json(err)
+        res.json({
+            message: "Success",
+            data: doc
+        })
+    })
+ })
+
+app.delete('/api/deleteShippingUID',(req,res)=>{
+    Shipping.findOneAndDelete(req.body.uid, (err, doc) => {
+        if (err) res.json(err)
+        res.json({
+            message: "Success",
+            data: doc
+        })
+    })
+ })
+app.delete('/api/deletePaymentInfoUID',(req,res)=>{
+    PaymentInfo.findOneAndDelete(req.body.uid, (err, doc) => {
+        if (err) res.json(err)
+        res.json({
+            message: "Success",
+            data: doc
+        })
+    })
+ })
+
+
+app.put('/api/deleteSubCategory', (req, res) => {
+    Category.findByIdAndUpdate({ _id: req.body.id }, { $set: { subCategories: req.body.subCategories } }, (err, docs) => {
+        if (err) res.json(err)
+        res.json({
+            message: "Success",
+            data: docs
+        })
+    })
+})
+app.put('/api/addFavorite', (req, res) => {
+    Activity.findOneAndUpdate({ firebaseUID: req.body.firebaseUID }, { $push: { Favorites: req.body.id } }, { new: true }, (err, docs) => {
+        if (err) res.json(err)
+        res.json({
+            message: "Success",
+            data: docs
+        })
+    })
+})
+
+app.post("/api/addOrder", (req , res)=>{
+
+    Orders.create(req.body,(err,doc)=>{
+        if(err) res.json({err})
+        res.json({
+            message: "Success",
+            data: doc
+        })
+    })
+
+
+
+})
+
+
+// app.get('/api/getChats',(req,res)=>{
+//     const chatIds = req.body
+//     let chats = []
+//     chatIds.forEach(id=>{
+//         Chats.findById(id,(err,docs)=>{
+//             if(err)return err
+//             chats.push(docs)
+//         })
+//     })
+//     if(chats.length>0){
+//         res.json({
+//             message:"Success",
+//             data:chats
+//         })
+//     }
+//     else{
+//         res.json({
+//             message:"No chat found"
+//         })
+//     }
+
+// })
+/*
+Get messages of a chat by userID
+    if chat is found, return chat with messages
+        else
+        create chat for firebaseUID of user, push the chatId 
+*/
+
+// app.post('/api/getChatMessages',(req,res)=>{
+//     Chats.findById(req.body.chatId,(err,doc)=>{
+//         if(err)throw err
+//         res.json({
+//             message:"Success",
+//             data:doc
+//         })
+//     })
+// })
+
+
+// user Search
+app.get('/api/getSearchedUsers',(req,res)=>{
+    Category.find(  (err,docs)=>{
+        if (err) throw err
+        res.json({
+            message: "success",
+            docs
+        })
+    })
+})
+// 
+
+app.post('/api/getUsers:page', (req, res) => {
+    const query = Object.assign({}, req.body)
+    var perPage = 20
+    var page = req.params.page || 1
+    console.log(query)
+    if (query.hasOwnProperty("minPrice")) {
+        delete query.minPrice
+        delete query.maxPrice
+        if (query.hasOwnProperty('last')) {
+            let startDate = new Date()
+            startDate.setDate(startDate.getDate() - query.last)
+            startDate.setHours(0)   // Set the hour, minute and second components to 0
+            startDate.setMinutes(0)
+            startDate.setSeconds(0)
+            User.find({
+                trade: query.trade, $or: [{ shippingNational: query.deliverable }, { shippingInternational: query.deliverable }], price: {
+                    $lte: req.body.maxPrice,
+                    $gte: req.body.minPrice
+                },
+                createdDate: { $gte: startDate }
+            }).skip((perPage * page) - perPage).limit(perPage).exec((err, data) => {
+
+                User.estimatedDocumentCount().exec((err, count) => {
+                    if (err) return res.json({ message: err })
+                    res.json({
+                        data,
+                        current: page,
+                        pages: Math.ceil(count / perPage)
+                    })
+                })
+            })
+        }
+        else {
+            User.find({
+                trade: req.body.trade, $or: [{ shippingNational: req.body.deliverable }, { shippingInternational: req.body.deliverable }], price: {
+                    $lte: req.body.maxPrice,
+                    $gte: req.body.minPrice
+                }
+            }).skip((perPage * page) - perPage).limit(perPage).exec((err, data) => {
+
+                User.estimatedDocumentCount().exec((err, count) => {
+                    if (err) return res.json({ message: err })
+                    res.json({
+                        data,
+                        current: page,
+                        pages: Math.ceil(count / perPage)
+                    })
+                })
+            })
+        }
+    }
+    else {
+        User.find(query).skip((perPage * page) - perPage).limit(perPage).exec((err, data) => {
+            User.estimatedDocumentCount().exec((err, count) => {
+                if (err) return res.json({ message: err })
+                res.json({
+                    data,
+                    current: page,
+                    pages: Math.ceil(count / perPage)
+                })
+            })
+        })
+    }
+})
+
+app.post('/api/userSearch', (req, res) => {
+    User.find({ $text: { $search: req.body.name } })
+        .limit(20)
+        .exec((err, docs) => {
+            if (err) throw err
+            res.json(docs)
+        });
+})
+
+app.post('/api/reportListing',(req,res)=>{
+    ListingReport.create(req.body,(err,doc)=>{
+        if(err){
+            res.json({
+                message:'Failed',
+                err
+            })
+        }
+        else{
+            res.json({
+                message:"Success",
+                doc
+            })
+        }
+    })
+})
+app.delete('/api/removeReport',(req,res)=>{
+    ListingReport.findByIdAndDelete(req._id,(err,doc)=>{
+        if(err){
+            res.json({
+                message:'Failed',
+                err
+            })
+        }
+        else{
+            res.json({
+                message:"Success",
+                doc
+            })
+        }
+    })
+})
+
+//Server
+app.listen(port, function () {
     console.log('Listening on port' + port)
 })
 
